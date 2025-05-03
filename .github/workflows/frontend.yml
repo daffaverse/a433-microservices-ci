@@ -1,3 +1,4 @@
+# .github/workflows/frontend.yml
 name: Karsajobs UI CI
 
 on:
@@ -8,34 +9,40 @@ on:
 
 jobs:
   lint-dockerfile:
+    name: Lint Frontend Dockerfile
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      
-      - name: Install Hadolint
-        run: |
-          sudo wget -O /bin/hadolint https://github.com/hadolint/hadolint/releases/download/v2.10.0/hadolint-Linux-x86_64
-          sudo chmod +x /bin/hadolint
-      
-      - name: Lint Dockerfile
-        run: hadolint frontend/Dockerfile
-  
-  build-app-karsajobs-ui:
-    needs: [lint-dockerfile]
+      - name: Checkout code
+        uses: actions/checkout@v4 # Updated version
+
+      - name: Run Hadolint # Using Hadolint action
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: frontend/Dockerfile
+          ignore: DL3007 # Example: Ignore specific rule if needed
+
+  build-and-push-ui:
+    name: Build and Push Frontend Image
+    needs: [lint-dockerfile] # Depends on successful linting
     runs-on: ubuntu-latest
+    permissions: # Explicitly define permissions needed
+      contents: read
+      packages: write # Needed for pushing to GHCR
     steps:
-      - uses: actions/checkout@v2
-      
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v1
+        uses: docker/login-action@v3 # Updated version
         with:
           registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.PAT_GITHUB }}
-      
+          username: ${{ github.actor }} # Use actor (user triggering the action) or github.repository_owner
+          password: ${{ secrets.PAT_GITHUB }} # Ensure this PAT has write:packages scope
+
       - name: Build and push Docker image
-        working-directory: frontend
-        run: |
-          docker build -t karsajobs-ui:latest .
-          docker tag karsajobs-ui:latest ghcr.io/daffaverse/karsajobs-ui:latest
-          docker push ghcr.io/daffaverse/karsajobs-ui:latest
+        uses: docker/build-push-action@v5 # Use dedicated action for build and push
+        with:
+          context: ./frontend # Path to the directory containing the Dockerfile
+          file: ./frontend/Dockerfile # Explicitly specify Dockerfile path
+          push: true # Push the image after building
+          tags: ghcr.io/${{ github.repository_owner }}/karsajobs-ui:latest # Use dynamic owner and repo name
