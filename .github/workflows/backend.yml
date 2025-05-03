@@ -1,4 +1,5 @@
-name: Karsajobs CI
+# .github/workflows/backend.yml
+name: Karsajobs Backend CI
 
 on:
   push:
@@ -8,48 +9,55 @@ on:
 
 jobs:
   lint-dockerfile:
+    name: Lint Backend Dockerfile
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      
-      - name: Install Hadolint
-        run: |
-          sudo wget -O /bin/hadolint https://github.com/hadolint/hadolint/releases/download/v2.10.0/hadolint-Linux-x86_64
-          sudo chmod +x /bin/hadolint
-      
-      - name: Lint Dockerfile
-        run: hadolint backend/Dockerfile
-  
-  test-app:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      
-      - name: Set up Go
-        uses: actions/setup-go@v2
+      - name: Checkout code
+        uses: actions/checkout@v4 # Updated version
+
+      - name: Run Hadolint # Using Hadolint action
+        uses: hadolint/hadolint-action@v3.1.0
         with:
-          go-version: 1.15
-      
+          dockerfile: backend/Dockerfile
+
+  test-app:
+    name: Run Go Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5 # Updated version
+        with:
+          go-version: '1.21' # Use a recent Go version (adjust if needed)
+
       - name: Run tests
         working-directory: backend
         run: go test -v -short --count=1 $(go list ./...)
-  
-  build-app-karsajobs:
-    needs: [lint-dockerfile, test-app]
+
+  build-and-push-backend:
+    name: Build and Push Backend Image
+    needs: [lint-dockerfile, test-app] # Depends on successful linting and tests
     runs-on: ubuntu-latest
+    permissions: # Explicitly define permissions needed
+      contents: read
+      packages: write # Needed for pushing to GHCR
     steps:
-      - uses: actions/checkout@v2
-      
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v1
+        uses: docker/login-action@v3 # Updated version
         with:
           registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.PAT_GITHUB }}
-      
+          username: ${{ github.actor }} # Use actor or github.repository_owner
+          password: ${{ secrets.PAT_GITHUB }} # Ensure this PAT has write:packages scope
+
       - name: Build and push Docker image
-        working-directory: backend
-        run: |
-          docker build -t karsajobs:latest .
-          docker tag karsajobs:latest ghcr.io/daffaverse/karsajobs:latest
-          docker push ghcr.io/daffaverse/karsajobs:latest
+        uses: docker/build-push-action@v5 # Use dedicated action for build and push
+        with:
+          context: ./backend # Path to the directory containing the Dockerfile
+          file: ./backend/Dockerfile # Explicitly specify Dockerfile path
+          push: true # Push the image after building
+          tags: ghcr.io/${{ github.repository_owner }}/karsajobs:latest # Use dynamic owner and repo name
