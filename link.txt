@@ -1,0 +1,2 @@
+Backend: ghcr.io/daffaverse/karsajobs:latest
+Frontend: ghcr.io/daffaverse/karsajobs-ui:latest

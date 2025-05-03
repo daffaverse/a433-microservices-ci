@@ -1,0 +1,36 @@
+name: frontend-app
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint-dockerfile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Hadolint
+        run: |
+          sudo wget -O /bin/hadolint https://github.com/hadolint/hadolint/releases/download/v2.10.0/hadolint-Linux-x86_64
+          sudo chmod +x /bin/hadolint
+      - name: Run Hadolint
+        run: hadolint frontend/Dockerfile
+
+  build-app-karsajobs-ui:
+    needs: [lint-dockerfile]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and Push
+        run: |
+          cd frontend
+          docker build -t ghcr.io/daffaverse/karsajobs-ui:latest .
+          docker push ghcr.io/daffaverse/karsajobs-ui:latest
